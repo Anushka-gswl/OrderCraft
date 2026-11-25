@@ -1,0 +1,227 @@
+<div class="page">
+
+  <div class="page-header">
+
+    <div>
+      <h2>Inventory</h2>
+      <p>Monitor available material stock</p>
+    </div>
+
+    @if (canManageInventory) {
+      <button
+        class="primary-button"
+        (click)="openAddInventoryForm()">
+        + Add Inventory
+      </button>
+    }
+
+  </div>
+
+  @if (showForm) {
+
+    <div class="form-card">
+
+      <div class="form-header">
+
+        <div>
+          <h3>
+            @if (editingId !== undefined) {
+              Edit Inventory
+            } @else {
+              Add Inventory
+            }
+          </h3>
+
+          <p>Enter the inventory details below</p>
+        </div>
+
+        <button
+          class="close-button"
+          (click)="closeInventoryForm()">
+          ×
+        </button>
+
+      </div>
+
+      <div class="form-grid">
+
+        <div class="form-group">
+          <label>Material ID</label>
+
+          <input
+            type="number"
+            [(ngModel)]="newInventory.material.materialId"
+            placeholder="Enter material ID">
+        </div>
+
+        <div class="form-group">
+          <label>Quantity Available</label>
+
+          <input
+            type="number"
+            [(ngModel)]="newInventory.quantityAvailable"
+            placeholder="Enter available quantity">
+        </div>
+
+      </div>
+
+      @if (errorMessage) {
+
+        <div class="form-error">
+          {{ errorMessage }}
+        </div>
+
+      }
+
+      <div class="form-actions">
+
+        <button
+          class="cancel-button"
+          (click)="closeInventoryForm()">
+          Cancel
+        </button>
+
+        <button
+          class="save-button"
+          (click)="saveInventory()">
+
+          @if (editingId !== undefined) {
+            Update Inventory
+          } @else {
+            Save Inventory
+          }
+
+        </button>
+
+      </div>
+
+    </div>
+
+  }
+
+  @if (loading) {
+
+    <div class="message">
+      Loading inventory...
+    </div>
+
+  }
+
+  @if (errorMessage && !showForm) {
+
+    <div class="error-message">
+      {{ errorMessage }}
+    </div>
+
+  }
+
+  @if (!loading && inventory.length === 0) {
+
+    <div class="empty-state">
+      No inventory records found.
+    </div>
+
+  }
+
+  @if (inventory.length > 0) {
+
+    <div class="table-card">
+
+      <table>
+
+        <thead>
+
+          <tr>
+            <th>ID</th>
+            <th>Material Code</th>
+            <th>Material Name</th>
+            <th>Unit</th>
+            <th>Available Quantity</th>
+            <th>Reorder Level</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+
+        </thead>
+
+        <tbody>
+
+          @for (item of inventory; track item.inventoryId) {
+
+            <tr>
+
+              <td>
+                {{ item.inventoryId }}
+              </td>
+
+              <td>
+                <strong>{{ item.material.materialCode }}</strong>
+              </td>
+
+              <td>
+                {{ item.material.materialName }}
+              </td>
+
+              <td>
+                {{ item.material.unit }}
+              </td>
+
+              <td>
+                {{ item.quantityAvailable }}
+              </td>
+
+              <td>
+                {{ item.material.reorderLevel }}
+              </td>
+
+              <td>
+
+                @if (item.quantityAvailable <= item.material.reorderLevel) {
+
+                  <span class="status-low">
+                    Low Stock
+                  </span>
+
+                } @else {
+
+                  <span class="status-available">
+                    Available
+                  </span>
+
+                }
+
+              </td>
+
+              <td>
+                @if (canManageInventory) {
+                  <div class="action-buttons">
+                    <button
+                      class="edit-button"
+                      (click)="openEditInventoryForm(item)">
+                      Edit
+                    </button>
+
+                    <button
+                      class="delete-button"
+                      (click)="deleteInventory(item.inventoryId)">
+                      Delete
+                    </button>
+                  </div>
+                } @else {
+                  <span>Read-only</span>
+                }
+              </td>
+
+            </tr>
+
+          }
+
+        </tbody>
+
+      </table>
+
+    </div>
+
+  }
+
+</div>

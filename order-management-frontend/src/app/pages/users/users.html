@@ -1,0 +1,162 @@
+<div class="page">
+  <div class="page-header">
+    <div>
+      <h2>User Management</h2>
+      <p>Manage OrderCraft user accounts and role-based permissions</p>
+    </div>
+
+    <button type="button" class="primary-button" (click)="openCreateUserForm()">
+      + Add User
+    </button>
+  </div>
+
+  @if (successMessage) {
+    <div class="success-message">
+      <span>{{ successMessage }}</span>
+      <button type="button" class="dismiss-button" (click)="successMessage = ''">×</button>
+    </div>
+  }
+
+  @if (errorMessage && !showForm) {
+    <div class="error-message">{{ errorMessage }}</div>
+  }
+
+  @if (showForm) {
+    <div class="form-card">
+      <div class="form-header">
+        <div>
+          <h3>{{ editingUserId !== undefined ? 'Edit User' : 'Create User' }}</h3>
+          <p>Assign role permissions and account status</p>
+        </div>
+        <button type="button" class="close-button" (click)="closeUserForm()">×</button>
+      </div>
+
+      <div class="form-grid">
+        @if (editingUserId === undefined) {
+          <div class="form-group">
+            <label>Username *</label>
+            <input
+              type="text"
+              [(ngModel)]="userForm.username"
+              placeholder="Minimum 3 characters" />
+          </div>
+        }
+
+        <div class="form-group">
+          <label>Full Name *</label>
+          <input
+            type="text"
+            [(ngModel)]="userForm.fullName"
+            placeholder="Enter full name" />
+        </div>
+
+        <div class="form-group">
+          <label>Email *</label>
+          <input
+            type="email"
+            [(ngModel)]="userForm.email"
+            placeholder="user@company.com" />
+        </div>
+
+        <div class="form-group">
+          <label>Role *</label>
+          <select [(ngModel)]="userForm.role">
+            @for (role of roles; track role) {
+              <option [value]="role">{{ role }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>
+            {{ editingUserId !== undefined ? 'Reset Password (Optional)' : 'Password *' }}
+          </label>
+          <input
+            type="password"
+            [(ngModel)]="userForm.password"
+            placeholder="Minimum 6 characters" />
+        </div>
+
+        @if (editingUserId !== undefined) {
+          <div class="form-group">
+            <label>Account Status</label>
+            <select [(ngModel)]="userForm.active">
+              <option [ngValue]="true">Active</option>
+              <option [ngValue]="false">Inactive</option>
+            </select>
+          </div>
+        }
+      </div>
+
+      @if (formErrorMessage) {
+        <div class="form-error">{{ formErrorMessage }}</div>
+      }
+
+      <div class="form-actions">
+        <button type="button" class="cancel-button" (click)="closeUserForm()">
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="save-button"
+          [disabled]="submitting"
+          (click)="saveUser()">
+          {{ editingUserId !== undefined ? 'Update User' : 'Create User' }}
+        </button>
+      </div>
+    </div>
+  }
+
+  @if (loading) {
+    <div class="message">Loading users...</div>
+  } @else if (users.length === 0) {
+    <div class="empty-state">No users found.</div>
+  } @else {
+    <div class="table-card">
+      <table>
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th>Full Name</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (user of users; track user.userId) {
+            <tr>
+              <td><strong>{{ user.username }}</strong></td>
+              <td>{{ user.fullName }}</td>
+              <td>{{ user.email }}</td>
+              <td><span class="role-badge">{{ user.role }}</span></td>
+              <td>
+                <span class="status-badge" [class]="user.active ? 'status-active' : 'status-inactive'">
+                  {{ user.active ? 'Active' : 'Inactive' }}
+                </span>
+              </td>
+              <td>
+                <div class="action-buttons">
+                  <button
+                    type="button"
+                    class="edit-button"
+                    (click)="openEditUserForm(user)">
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    class="delete-button"
+                    [disabled]="isCurrentUser(user)"
+                    (click)="deleteUser(user)">
+                    Delete
+                  </button>
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>

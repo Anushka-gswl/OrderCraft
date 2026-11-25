@@ -1,0 +1,245 @@
+<section class="dashboard">
+  <!-- Welcome -->
+  <div class="welcome-card">
+    <div>
+      <h2>Welcome back, {{ authService.currentUser()?.fullName || 'User' }}</h2>
+      <p>
+        Live operational overview across orders, inventory, procurement, and invoicing.
+      </p>
+    </div>
+
+    <div class="welcome-actions">
+      <span class="role-pill">{{ authService.currentUser()?.role }}</span>
+      <button
+        type="button"
+        class="refresh-button"
+        [disabled]="loading"
+        (click)="loadSummary()">
+        {{ loading ? 'Refreshing...' : 'Refresh' }}
+      </button>
+    </div>
+  </div>
+
+  @if (errorMessage) {
+    <div class="error-message">{{ errorMessage }}</div>
+  }
+
+  @if (loading && !summary) {
+    <div class="loading-card">Loading live operational metrics...</div>
+  }
+
+  @if (summary) {
+    <!-- Primary KPI Grid -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon">🛒</div>
+        <div>
+          <span>Total Orders</span>
+          <h3>{{ summary.totalOrders }}</h3>
+          <small>{{ summary.newOrders }} New • {{ summary.inProgressOrders }} In Progress</small>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon">₹</div>
+        <div>
+          <span>Order Revenue</span>
+          <h3>₹{{ summary.totalOrderRevenue | number: '1.2-2' }}</h3>
+          <small>{{ summary.completedOrders }} Completed Orders</small>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon">🧾</div>
+        <div>
+          <span>Invoices ({{ summary.totalInvoices }})</span>
+          <h3>₹{{ summary.paidInvoiceAmount | number: '1.2-2' }}</h3>
+          <small>Outstanding: ₹{{ summary.outstandingInvoiceAmount | number: '1.2-2' }}</small>
+        </div>
+      </div>
+
+      <div class="stat-card" [class.stat-alert]="summary.lowStockAlerts.length > 0">
+        <div class="stat-icon">▤</div>
+        <div>
+          <span>Low Stock Alerts</span>
+          <h3>{{ summary.lowStockAlerts.length }}</h3>
+          <small>{{ summary.pendingPurchaseOrders }} Pending POs • {{ summary.totalMaterials }} Materials</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Secondary Master Data & Financial Strip -->
+    <div class="mini-grid">
+      <div class="mini-card">
+        <span>Customers</span>
+        <strong>{{ summary.totalCustomers }}</strong>
+      </div>
+      <div class="mini-card">
+        <span>Active Products</span>
+        <strong>{{ summary.activeProducts }} / {{ summary.totalProducts }}</strong>
+      </div>
+      <div class="mini-card">
+        <span>Purchase Orders</span>
+        <strong>{{ summary.totalPurchaseOrders }} ({{ summary.receivedPurchaseOrders }} Received)</strong>
+      </div>
+      <div class="mini-card">
+        <span>Procurement Spend</span>
+        <strong>₹{{ summary.totalPurchaseSpend | number: '1.2-2' }}</strong>
+      </div>
+    </div>
+
+    <!-- Quick Actions (Role-aware) -->
+    <div class="section-card">
+      <div class="section-header">
+        <div>
+          <h2>Quick Actions</h2>
+          <p>Jump directly to operational modules available for your role</p>
+        </div>
+      </div>
+
+      <div class="quick-actions">
+        @if (canAccess('ADMIN', 'SALES_EXECUTIVE', 'INVENTORY_MANAGER', 'PROCUREMENT')) {
+          <a class="action-button" routerLink="/orders">Manage Orders</a>
+        }
+        @if (canAccess('ADMIN', 'SALES_EXECUTIVE')) {
+          <a class="action-button" routerLink="/customers">Customers</a>
+          <a class="action-button" routerLink="/invoices">Invoices</a>
+        }
+        @if (canAccess('ADMIN', 'SALES_EXECUTIVE', 'INVENTORY_MANAGER', 'PROCUREMENT')) {
+          <a class="action-button" routerLink="/products">Products & BOM</a>
+        }
+        @if (canAccess('ADMIN', 'INVENTORY_MANAGER', 'PROCUREMENT', 'SALES_EXECUTIVE')) {
+          <a class="action-button" routerLink="/inventory">Inventory</a>
+        }
+        @if (canAccess('ADMIN', 'PROCUREMENT', 'INVENTORY_MANAGER')) {
+          <a class="action-button" routerLink="/purchase-orders">Purchase Orders</a>
+        }
+      </div>
+    </div>
+
+    <!-- Low Stock Alerts -->
+    @if (summary.lowStockAlerts.length > 0) {
+      <div class="section-card alert-card">
+        <div class="section-header">
+          <div>
+            <h2>Low Stock Alerts ({{ summary.lowStockAlerts.length }})</h2>
+            <p>Materials at or below reorder threshold</p>
+          </div>
+          @if (canAccess('ADMIN', 'INVENTORY_MANAGER', 'PROCUREMENT', 'SALES_EXECUTIVE')) {
+            <a class="link-button" routerLink="/inventory">View Inventory →</a>
+          }
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Material</th>
+                <th>Available</th>
+                <th>Reorder Level</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of summary.lowStockAlerts; track item.materialId) {
+                <tr>
+                  <td><strong>{{ item.materialCode }}</strong></td>
+                  <td>{{ item.materialName }}</td>
+                  <td class="danger-text">{{ item.quantityAvailable }} {{ item.unit }}</td>
+                  <td>{{ item.reorderLevel }} {{ item.unit }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+
+    <!-- Recent Orders & Recent Invoices -->
+    <div class="two-col-grid">
+      <div class="section-card">
+        <div class="section-header">
+          <div>
+            <h2>Recent Orders</h2>
+            <p>Latest customer order activity</p>
+          </div>
+          <a class="link-button" routerLink="/orders">View All →</a>
+        </div>
+
+        @if (summary.recentOrders.length === 0) {
+          <p class="empty-text">No customer orders recorded yet.</p>
+        } @else {
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Order #</th>
+                  <th>Customer</th>
+                  <th>Status</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (ord of summary.recentOrders; track ord.orderId) {
+                  <tr>
+                    <td><strong>{{ ord.orderNumber }}</strong></td>
+                    <td>{{ ord.customerName }}</td>
+                    <td>
+                      <span class="status-badge" [class]="getStatusClass(ord.status)">
+                        {{ ord.status }}
+                      </span>
+                    </td>
+                    <td><strong>₹{{ ord.totalAmount | number: '1.2-2' }}</strong></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+
+      <div class="section-card">
+        <div class="section-header">
+          <div>
+            <h2>Recent Invoices</h2>
+            <p>Latest billing & payment status</p>
+          </div>
+          @if (canAccess('ADMIN', 'SALES_EXECUTIVE')) {
+            <a class="link-button" routerLink="/invoices">View All →</a>
+          }
+        </div>
+
+        @if (summary.recentInvoices.length === 0) {
+          <p class="empty-text">No invoices generated yet.</p>
+        } @else {
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Invoice #</th>
+                  <th>Customer</th>
+                  <th>Status</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (inv of summary.recentInvoices; track inv.invoiceId) {
+                  <tr>
+                    <td><strong>{{ inv.invoiceNumber }}</strong></td>
+                    <td>{{ inv.customerName }}</td>
+                    <td>
+                      <span class="status-badge" [class]="getStatusClass(inv.status)">
+                        {{ inv.status }}
+                      </span>
+                    </td>
+                    <td><strong>₹{{ inv.totalAmount | number: '1.2-2' }}</strong></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    </div>
+  }
+</section>

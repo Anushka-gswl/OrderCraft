@@ -1,0 +1,142 @@
+@if (authService.isLoggedIn()) {
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon">O</div>
+        <div>
+          <h2>OrderCraft</h2>
+          <span>Order Management</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <a
+          class="nav-item"
+          routerLink="/dashboard"
+          routerLinkActive="active">
+          <span>⌂</span>
+          <span>Dashboard</span>
+        </a>
+
+        @if (canAccess('ADMIN', 'SALES_EXECUTIVE')) {
+          <a
+            class="nav-item"
+            routerLink="/customers"
+            routerLinkActive="active">
+            <span>♙</span>
+            <span>Customers</span>
+          </a>
+        }
+
+        @if (canAccess('ADMIN', 'SALES_EXECUTIVE', 'INVENTORY_MANAGER', 'PROCUREMENT')) {
+          <a
+            class="nav-item"
+            routerLink="/products"
+            routerLinkActive="active">
+            <span>▣</span>
+            <span>Products</span>
+          </a>
+        }
+
+        @if (canAccess('ADMIN', 'INVENTORY_MANAGER', 'PROCUREMENT')) {
+          <a
+            class="nav-item"
+            routerLink="/materials"
+            routerLinkActive="active">
+            <span>◈</span>
+            <span>Materials</span>
+          </a>
+        }
+
+        @if (canAccess('ADMIN', 'INVENTORY_MANAGER', 'PROCUREMENT', 'SALES_EXECUTIVE')) {
+          <a
+            class="nav-item"
+            routerLink="/inventory"
+            routerLinkActive="active">
+            <span>▤</span>
+            <span>Inventory</span>
+          </a>
+        }
+
+        @if (canAccess('ADMIN', 'SALES_EXECUTIVE', 'INVENTORY_MANAGER', 'PROCUREMENT')) {
+          <a
+            class="nav-item"
+            routerLink="/orders"
+            routerLinkActive="active">
+            <span>🛒</span>
+            <span>Orders</span>
+          </a>
+        }
+
+        @if (canAccess('ADMIN', 'PROCUREMENT', 'INVENTORY_MANAGER')) {
+          <a
+            class="nav-item"
+            routerLink="/purchase-orders"
+            routerLinkActive="active">
+            <span>▥</span>
+            <span>Purchase Orders</span>
+          </a>
+        }
+
+        @if (canAccess('ADMIN', 'SALES_EXECUTIVE')) {
+          <a
+            class="nav-item"
+            routerLink="/invoices"
+            routerLinkActive="active">
+            <span>🧾</span>
+            <span>Invoices</span>
+          </a>
+        }
+
+        @if (canAccess('ADMIN')) {
+          <a
+            class="nav-item"
+            routerLink="/users"
+            routerLinkActive="active">
+            <span>⚙</span>
+            <span>Users</span>
+          </a>
+        }
+      </nav>
+
+      <div class="sidebar-footer">
+        <span>OrderCraft</span>
+        <small>v1.0</small>
+      </div>
+    </aside>
+
+    <!-- Main Area -->
+    <main class="main-content">
+      <!-- Topbar -->
+      <header class="topbar">
+        <div>
+          <h1>OrderCraft</h1>
+          <p>Order Management System</p>
+        </div>
+
+        <div class="user-section">
+          <div class="user-avatar">
+            {{ userInitial }}
+          </div>
+
+          <div>
+            <strong>{{ authService.currentUser()?.fullName }}</strong>
+            <small>{{ authService.currentUser()?.role }}</small>
+          </div>
+
+          <button type="button" class="logout-button" (click)="logout()">
+            Logout
+          </button>
+        </div>
+      </header>
+
+      <!-- Routed Page -->
+      <section class="page-content">
+        <router-outlet></router-outlet>
+      </section>
+    </main>
+  </div>
+} @else {
+  <router-outlet></router-outlet>
+}

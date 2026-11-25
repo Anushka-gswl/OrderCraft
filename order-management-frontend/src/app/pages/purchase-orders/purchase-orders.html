@@ -1,0 +1,550 @@
+<div class="page">
+  <div class="page-header">
+    <div>
+      <h2>Purchase Orders</h2>
+      <p>Procure raw materials, generate shortage POs, and receive stock into inventory</p>
+    </div>
+
+    @if (canManagePurchaseOrders) {
+      <div class="header-actions">
+        <button
+          type="button"
+          class="secondary-button"
+          (click)="openShortageGenerator()">
+          Generate from Shortages
+        </button>
+        <button
+          type="button"
+          class="primary-button"
+          (click)="openCreatePoForm()">
+          + Create Purchase Order
+        </button>
+      </div>
+    }
+  </div>
+
+  <!-- Summary Strip -->
+  <div class="summary-grid">
+    <div class="summary-card">
+      <span>Total Purchase Orders</span>
+      <strong>{{ purchaseOrders.length }}</strong>
+    </div>
+    <div class="summary-card">
+      <span>Pending Receipt (CREATED)</span>
+      <strong>{{ createdCount }}</strong>
+    </div>
+    <div class="summary-card">
+      <span>Received Orders</span>
+      <strong>{{ receivedCount }}</strong>
+    </div>
+    <div class="summary-card">
+      <span>Low-Stock Materials</span>
+      <strong>{{ lowStockCount }}</strong>
+    </div>
+  </div>
+
+  @if (successMessage) {
+    <div class="success-message">
+      <span>{{ successMessage }}</span>
+      <button
+        type="button"
+        class="dismiss-button"
+        (click)="successMessage = ''">
+        ×
+      </button>
+    </div>
+  }
+
+  @if (errorMessage && !showForm && !showShortagePanel) {
+    <div class="error-message">
+      {{ errorMessage }}
+    </div>
+  }
+
+  <!-- Generate PO from Customer Order Shortages -->
+  @if (showShortagePanel) {
+    <div class="form-card">
+      <div class="form-header">
+        <div>
+          <h3>Generate Purchase Order for Order Shortages</h3>
+          <p>Select a customer order to inspect raw material shortages and create a PO</p>
+        </div>
+
+        <button
+          type="button"
+          class="close-button"
+          (click)="closeShortageGenerator()">
+          ×
+        </button>
+      </div>
+
+      <div class="form-group">
+        <label for="shortageOrderSelect">Customer Order *</label>
+        <select
+          id="shortageOrderSelect"
+          [(ngModel)]="selectedOrderForShortageId"
+          (ngModelChange)="onShortageOrderSelected()">
+          <option [ngValue]="0">-- Select Customer Order --</option>
+          @for (order of shortageEligibleOrders; track order.orderId) {
+            <option [ngValue]="order.orderId">
+              {{ order.orderNumber }} — {{ order.customer.customerName }} ({{ order.status }})
+            </option>
+          }
+        </select>
+      </div>
+
+      @if (shortageLoading) {
+        <p class="loading-inline">Checking material shortages...</p>
+      }
+
+      @if (!shortageLoading && selectedOrderForShortageId > 0) {
+        <div class="shortage-box">
+          @if (shortagesPreview.length === 0) {
+            <p class="no-shortage-text">
+              All required materials are available in inventory for this order.
+            </p>
+          } @else {
+            <h4>Detected Material Shortages</h4>
+            <ul>
+              @for (line of shortagesPreview; track $index) {
+                <li>{{ line }}</li>
+              }
+            </ul>
+          }
+        </div>
+      }
+
+      @if (shortageErrorMessage) {
+        <div class="form-error">
+          {{ shortageErrorMessage }}
+        </div>
+      }
+
+      <div class="form-actions">
+        <button
+          type="button"
+          class="cancel-button"
+          [disabled]="submitting"
+          (click)="closeShortageGenerator()">
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="save-button"
+          [disabled]="submitting || shortagesPreview.length === 0"
+          (click)="generatePoForShortages()">
+          @if (submitting) {
+            Generating...
+          } @else {
+            Generate Purchase Order
+          }
+        </button>
+      </div>
+    </div>
+  }
+
+  <!-- Manual Create / Edit PO Form -->
+  @if (showForm) {
+    <div class="form-card">
+      <div class="form-header">
+        <div>
+          <h3>
+            @if (editingPoId !== undefined) {
+              Edit Purchase Order
+            } @else {
+              Create Purchase Order
+            }
+          </h3>
+          <p>Specify supplier, optional linked customer order, and required materials</p>
+        </div>
+
+        <button
+          type="button"
+          class="close-button"
+          (click)="closePoForm()">
+          ×
+        </button>
+      </div>
+
+      <div class="form-grid-3">
+        <div class="form-group">
+          <label for="supplierInput">Supplier Name *</label>
+          <input
+            id="supplierInput"
+            type="text"
+            [(ngModel)]="poForm.supplierName"
+            placeholder="e.g. Bharat Steel Works" />
+        </div>
+
+        <div class="form-group">
+          <label for="poNumberInput">PO Number (Optional)</label>
+          <input
+            id="poNumberInput"
+            type="text"
+            [(ngModel)]="poForm.poNumber"
+            placeholder="Leave blank to auto-generate" />
+        </div>
+
+        <div class="form-group">
+          <label for="linkedOrderSelect">Associated Customer Order (Optional)</label>
+          <select
+            id="linkedOrderSelect"
+            [(ngModel)]="poForm.customerOrderId">
+            <option [ngValue]="0">-- None (General Restock) --</option>
+            @for (order of customerOrders; track order.orderId) {
+              <option [ngValue]="order.orderId">
+                {{ order.orderNumber }} ({{ order.customer.customerName }})
+              </option>
+            }
+          </select>
+        </div>
+      </div>
+
+      <div class="items-section">
+        <div class="items-header">
+          <div>
+            <h4>Material Line Items</h4>
+            <small>Unit costs are retrieved from the material master catalog</small>
+          </div>
+          <button
+            type="button"
+            class="secondary-button"
+            (click)="addItemRow()">
+            + Add Material
+          </button>
+        </div>
+
+        <div class="items-table-wrapper">
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th>Material *</th>
+                <th>Unit</th>
+                <th>Unit Cost</th>
+                <th>Quantity *</th>
+                <th>Subtotal</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of poForm.items; track $index) {
+                <tr>
+                  <td>
+                    <select
+                      [(ngModel)]="row.materialId"
+                      (ngModelChange)="onMaterialChange(row)">
+                      <option [ngValue]="0">-- Select Material --</option>
+                      @for (mat of materials; track mat.materialId) {
+                        <option [ngValue]="mat.materialId">
+                          {{ mat.materialCode }} - {{ mat.materialName }} (₹{{
+                            mat.unitCost | number: '1.2-2'
+                          }}/{{ mat.unit }})
+                        </option>
+                      }
+                    </select>
+                  </td>
+                  <td>{{ row.unit || '—' }}</td>
+                  <td class="numeric-cell">₹{{ row.unitCost | number: '1.2-2' }}</td>
+                  <td>
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="any"
+                      [(ngModel)]="row.quantity"
+                      (ngModelChange)="onQuantityChange(row)"
+                      class="qty-input" />
+                  </td>
+                  <td class="numeric-cell">
+                    <strong>₹{{ row.subtotal | number: '1.2-2' }}</strong>
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      class="delete-button"
+                      [disabled]="poForm.items.length <= 1"
+                      (click)="removeItemRow($index)">
+                      Remove
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div class="order-total-bar">
+          <span>Estimated Total Amount</span>
+          <strong>₹{{ estimatedFormTotal | number: '1.2-2' }}</strong>
+        </div>
+      </div>
+
+      @if (formErrorMessage) {
+        <div class="form-error">
+          {{ formErrorMessage }}
+        </div>
+      }
+
+      <div class="form-actions">
+        <button
+          type="button"
+          class="cancel-button"
+          [disabled]="submitting"
+          (click)="closePoForm()">
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="save-button"
+          [disabled]="submitting"
+          (click)="savePurchaseOrder()">
+          @if (submitting) {
+            Saving...
+          } @else if (editingPoId !== undefined) {
+            Update Purchase Order
+          } @else {
+            Create Purchase Order
+          }
+        </button>
+      </div>
+    </div>
+  }
+
+  <!-- Search & Filter -->
+  <div class="toolbar-card">
+    <div class="search-box">
+      <input
+        type="text"
+        [(ngModel)]="searchTerm"
+        placeholder="Search by PO number, supplier name, or customer order #..." />
+    </div>
+
+    <div class="filter-box">
+      <label for="poStatusFilter">Status:</label>
+      <select id="poStatusFilter" [(ngModel)]="statusFilter">
+        <option value="ALL">All Statuses</option>
+        <option value="CREATED">CREATED</option>
+        <option value="RECEIVED">RECEIVED</option>
+        <option value="CANCELLED">CANCELLED</option>
+      </select>
+    </div>
+  </div>
+
+  @if (loading) {
+    <div class="message">
+      Loading purchase orders...
+    </div>
+  }
+
+  @if (!loading && filteredPurchaseOrders.length === 0) {
+    <div class="empty-state">
+      @if (purchaseOrders.length === 0) {
+        No purchase orders found. Create a manual PO or generate one from customer order shortages.
+      } @else {
+        No purchase orders match your current search or filter criteria.
+      }
+    </div>
+  }
+
+  @if (!loading && filteredPurchaseOrders.length > 0) {
+    <div class="table-card">
+      <table>
+        <thead>
+          <tr>
+            <th>PO Number</th>
+            <th>Supplier</th>
+            <th>Customer Order</th>
+            <th>Order Date</th>
+            <th>Status</th>
+            <th>Total Amount</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          @for (po of filteredPurchaseOrders; track po.purchaseOrderId) {
+            <tr>
+              <td><strong>{{ po.poNumber }}</strong></td>
+              <td>{{ po.supplierName }}</td>
+              <td>
+                @if (po.customerOrder) {
+                  <span class="linked-order">{{ po.customerOrder.orderNumber }}</span>
+                } @else {
+                  <span class="muted-text">—</span>
+                }
+              </td>
+              <td>{{ po.orderDate ? (po.orderDate | date: 'medium') : '—' }}</td>
+              <td>
+                <span class="status-badge" [class]="getStatusClass(po.status)">
+                  {{ po.status }}
+                </span>
+              </td>
+              <td><strong>₹{{ po.totalAmount | number: '1.2-2' }}</strong></td>
+              <td>
+                <div class="action-buttons">
+                  <button
+                    type="button"
+                    class="view-button"
+                    (click)="viewPoDetails(po)">
+                    View
+                  </button>
+
+                  @if (canReceive(po)) {
+                    <button
+                      type="button"
+                      class="receive-button"
+                      [disabled]="receivingId === po.purchaseOrderId"
+                      (click)="receivePurchaseOrder(po)">
+                      @if (receivingId === po.purchaseOrderId) {
+                        Receiving...
+                      } @else {
+                        Receive
+                      }
+                    </button>
+                  }
+
+                  @if (canEdit(po)) {
+                    <button
+                      type="button"
+                      class="edit-button"
+                      (click)="openEditPoForm(po)">
+                      Edit
+                    </button>
+                  }
+
+                  @if (canDelete(po)) {
+                    <button
+                      type="button"
+                      class="delete-button"
+                      (click)="deletePurchaseOrder(po)">
+                      Delete
+                    </button>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+
+  <!-- Purchase Order Details Modal -->
+  @if (detailsLoading) {
+    <div class="modal-backdrop">
+      <div class="modal-card">
+        <p class="message-inline">Loading purchase order details...</p>
+      </div>
+    </div>
+  }
+
+  @if (selectedPoDetails && !detailsLoading) {
+    <div class="modal-backdrop" (click)="closePoDetails()">
+      <div class="modal-card" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <div>
+            <h3>{{ selectedPoDetails.poNumber }}</h3>
+            <p>
+              Created on
+              {{
+                selectedPoDetails.orderDate
+                  ? (selectedPoDetails.orderDate | date: 'medium')
+                  : '—'
+              }}
+            </p>
+          </div>
+
+          <div class="modal-header-right">
+            <span
+              class="status-badge"
+              [class]="getStatusClass(selectedPoDetails.status)">
+              {{ selectedPoDetails.status }}
+            </span>
+            <button
+              type="button"
+              class="close-button"
+              (click)="closePoDetails()">
+              ×
+            </button>
+          </div>
+        </div>
+
+        <div class="details-info-grid">
+          <div>
+            <span>Supplier</span>
+            <strong>{{ selectedPoDetails.supplierName }}</strong>
+          </div>
+          <div>
+            <span>Associated Customer Order</span>
+            <strong>
+              {{
+                selectedPoDetails.customerOrder
+                  ? selectedPoDetails.customerOrder.orderNumber +
+                    ' (' +
+                    selectedPoDetails.customerOrder.customer.customerName +
+                    ')'
+                  : 'General Restock (None)'
+              }}
+            </strong>
+          </div>
+        </div>
+
+        <div class="modal-items">
+          <h4>Ordered Materials ({{ selectedPoDetails.items.length }})</h4>
+          <table>
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Material</th>
+                <th>Qty</th>
+                <th>Unit</th>
+                <th>Unit Cost</th>
+                <th>Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of selectedPoDetails.items; track item.purchaseOrderItemId) {
+                <tr>
+                  <td><strong>{{ item.material.materialCode }}</strong></td>
+                  <td>{{ item.material.materialName }}</td>
+                  <td>{{ item.quantity }}</td>
+                  <td>{{ item.material.unit }}</td>
+                  <td>₹{{ item.unitCost | number: '1.2-2' }}</td>
+                  <td><strong>₹{{ item.subtotal | number: '1.2-2' }}</strong></td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="6" class="empty-cell">No material items found.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div class="modal-footer">
+          <div class="modal-total">
+            <span>Total Amount:</span>
+            <strong>₹{{ selectedPoDetails.totalAmount | number: '1.2-2' }}</strong>
+          </div>
+
+          <div class="modal-actions">
+            @if (canReceive(selectedPoDetails)) {
+              <button
+                type="button"
+                class="receive-button"
+                [disabled]="receivingId === selectedPoDetails.purchaseOrderId"
+                (click)="receivePurchaseOrder(selectedPoDetails)">
+                Receive Materials
+              </button>
+            }
+            <button
+              type="button"
+              class="cancel-button"
+              (click)="closePoDetails()">
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+</div>

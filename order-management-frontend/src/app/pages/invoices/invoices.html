@@ -1,0 +1,321 @@
+<div class="page">
+  <div class="page-header">
+    <div>
+      <h2>Invoices</h2>
+      <p>Generate and manage customer invoices from completed orders</p>
+    </div>
+
+    @if (canManageInvoices) {
+      <button
+        type="button"
+        class="primary-button"
+        [disabled]="completedOrders.length === 0"
+        (click)="openGenerateForm()">
+        + Generate Invoice
+      </button>
+    }
+  </div>
+
+  @if (successMessage) {
+    <div class="success-message">
+      <span>{{ successMessage }}</span>
+      <button type="button" class="dismiss-button" (click)="successMessage = ''">×</button>
+    </div>
+  }
+
+  @if (errorMessage) {
+    <div class="error-message">{{ errorMessage }}</div>
+  }
+
+  <!-- Generate Invoice Form -->
+  @if (showGenerateForm) {
+    <div class="form-card">
+      <div class="form-header">
+        <div>
+          <h3>Generate Invoice</h3>
+          <p>Select a completed order to generate a new invoice</p>
+        </div>
+        <button type="button" class="close-button" (click)="closeGenerateForm()">×</button>
+      </div>
+
+      @if (formErrorMessage) {
+        <div class="form-error">{{ formErrorMessage }}</div>
+      }
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="invOrder">Completed Order *</label>
+          <select id="invOrder" [(ngModel)]="generateForm.orderId">
+            <option [ngValue]="0">-- Select Order --</option>
+            @for (order of completedOrders; track order.orderId) {
+              <option [ngValue]="order.orderId">
+                {{ order.orderNumber }} — {{ order.customer?.customerName }} (₹{{ order.totalAmount | number: '1.2-2' }})
+              </option>
+            }
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="invTaxRate">Tax Rate (%)</label>
+          <input
+            id="invTaxRate"
+            type="number"
+            min="0"
+            step="0.01"
+            [(ngModel)]="generateForm.taxRate" />
+        </div>
+
+        <div class="form-group">
+          <label for="invDueDate">Due Date</label>
+          <input id="invDueDate" type="date" [(ngModel)]="generateForm.dueDate" />
+        </div>
+
+        <div class="form-group">
+          <label for="invNotes">Notes</label>
+          <input
+            id="invNotes"
+            type="text"
+            placeholder="Optional payment terms or notes"
+            [(ngModel)]="generateForm.notes" />
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button
+          type="button"
+          class="cancel-button"
+          (click)="closeGenerateForm()">
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="primary-button"
+          [disabled]="submitting"
+          (click)="submitGenerateInvoice()">
+          {{ submitting ? 'Generating...' : 'Generate Invoice' }}
+        </button>
+      </div>
+    </div>
+  }
+
+  <!-- Filters -->
+  <div class="toolbar">
+    <input
+      type="text"
+      class="search-input"
+      placeholder="Search by invoice #, order #, or customer..."
+      [(ngModel)]="searchTerm" />
+
+    <select class="filter-select" [(ngModel)]="statusFilter">
+      <option value="ALL">All Statuses</option>
+      <option value="DRAFT">DRAFT</option>
+      <option value="SENT">SENT</option>
+      <option value="PAID">PAID</option>
+      <option value="OVERDUE">OVERDUE</option>
+      <option value="CANCELLED">CANCELLED</option>
+    </select>
+  </div>
+
+  @if (loading) {
+    <div class="message">Loading invoices...</div>
+  }
+
+  @if (!loading && filteredInvoices.length === 0) {
+    <div class="empty-state">
+      @if (invoices.length === 0) {
+        No invoices generated yet. Complete a customer order and click "+ Generate Invoice".
+      } @else {
+        No invoices match your search or filter criteria.
+      }
+    </div>
+  }
+
+  @if (!loading && filteredInvoices.length > 0) {
+    <div class="table-card">
+      <table>
+        <thead>
+          <tr>
+            <th>Invoice #</th>
+            <th>Order #</th>
+            <th>Customer</th>
+            <th>Invoice Date</th>
+            <th>Subtotal</th>
+            <th>Tax</th>
+            <th>Total</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (inv of filteredInvoices; track inv.invoiceId) {
+            <tr>
+              <td><strong>{{ inv.invoiceNumber }}</strong></td>
+              <td>{{ inv.orderNumber }}</td>
+              <td>{{ inv.customerName }}</td>
+              <td>{{ inv.invoiceDate | date: 'mediumDate' }}</td>
+              <td>₹{{ inv.subtotal | number: '1.2-2' }}</td>
+              <td>₹{{ inv.taxAmount | number: '1.2-2' }} ({{ inv.taxRate }}%)</td>
+              <td><strong>₹{{ inv.totalAmount | number: '1.2-2' }}</strong></td>
+              <td>
+                <span class="status-badge" [class]="getStatusClass(inv.status)">
+                  {{ inv.status }}
+                </span>
+              </td>
+              <td>
+                <div class="action-buttons">
+                  <button type="button" class="view-button" (click)="viewInvoice(inv)">
+                    View
+                  </button>
+
+                  @if (canManageInvoices && inv.status === 'DRAFT') {
+                    <button
+                      type="button"
+                      class="send-button"
+                      [disabled]="actionLoading"
+                      (click)="updateStatus(inv, 'SENT')">
+                      Send
+                    </button>
+                    <button
+                      type="button"
+                      class="delete-button"
+                      (click)="deleteInvoice(inv)">
+                      Delete
+                    </button>
+                  }
+
+                  @if (canManageInvoices && (inv.status === 'SENT' || inv.status === 'OVERDUE')) {
+                    <button
+                      type="button"
+                      class="paid-button"
+                      [disabled]="actionLoading"
+                      (click)="updateStatus(inv, 'PAID')">
+                      Mark Paid
+                    </button>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+
+  <!-- Invoice Detail Modal -->
+  @if (selectedInvoice) {
+    <div class="modal-backdrop" (click)="closeInvoiceModal()">
+      <div class="modal-card" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <div>
+            <h3>Invoice {{ selectedInvoice.invoiceNumber }}</h3>
+            <p>
+              Order {{ selectedInvoice.orderNumber }} •
+              Issued {{ selectedInvoice.invoiceDate | date: 'medium' }}
+            </p>
+          </div>
+          <div class="modal-header-right">
+            <span class="status-badge" [class]="getStatusClass(selectedInvoice.status)">
+              {{ selectedInvoice.status }}
+            </span>
+            <button type="button" class="close-button" (click)="closeInvoiceModal()">×</button>
+          </div>
+        </div>
+
+        <div class="details-info-grid">
+          <div>
+            <span>Customer</span>
+            <strong>{{ selectedInvoice.customerName }}</strong>
+          </div>
+          <div>
+            <span>Due Date</span>
+            <strong>{{ selectedInvoice.dueDate ? (selectedInvoice.dueDate | date: 'mediumDate') : '—' }}</strong>
+          </div>
+          <div>
+            <span>Notes</span>
+            <strong>{{ selectedInvoice.notes || '—' }}</strong>
+          </div>
+        </div>
+
+        <div class="modal-items">
+          <h4>Line Items ({{ selectedInvoice.items.length }})</h4>
+          <table>
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Product</th>
+                <th>Unit Price</th>
+                <th>Qty</th>
+                <th>Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of selectedInvoice.items; track item.invoiceItemId) {
+                <tr>
+                  <td><strong>{{ item.productCode }}</strong></td>
+                  <td>{{ item.productName }}</td>
+                  <td>₹{{ item.unitPrice | number: '1.2-2' }}</td>
+                  <td>{{ item.quantity }}</td>
+                  <td><strong>₹{{ item.subtotal | number: '1.2-2' }}</strong></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div class="invoice-totals">
+          <div><span>Subtotal:</span> <strong>₹{{ selectedInvoice.subtotal | number: '1.2-2' }}</strong></div>
+          <div><span>Tax ({{ selectedInvoice.taxRate }}%):</span> <strong>₹{{ selectedInvoice.taxAmount | number: '1.2-2' }}</strong></div>
+          <div class="grand-total"><span>Total Amount:</span> <strong>₹{{ selectedInvoice.totalAmount | number: '1.2-2' }}</strong></div>
+        </div>
+
+        <div class="modal-footer">
+          <div class="modal-actions">
+            @if (canManageInvoices && selectedInvoice.status === 'DRAFT') {
+              <button
+                type="button"
+                class="send-button"
+                [disabled]="actionLoading"
+                (click)="updateStatus(selectedInvoice, 'SENT')">
+                Mark as Sent
+              </button>
+              <button
+                type="button"
+                class="delete-button"
+                [disabled]="actionLoading"
+                (click)="updateStatus(selectedInvoice, 'CANCELLED')">
+                Cancel Invoice
+              </button>
+            }
+
+            @if (canManageInvoices && (selectedInvoice.status === 'SENT' || selectedInvoice.status === 'OVERDUE')) {
+              <button
+                type="button"
+                class="paid-button"
+                [disabled]="actionLoading"
+                (click)="updateStatus(selectedInvoice, 'PAID')">
+                Mark as Paid
+              </button>
+              @if (selectedInvoice.status === 'SENT') {
+                <button
+                  type="button"
+                  class="overdue-button"
+                  [disabled]="actionLoading"
+                  (click)="updateStatus(selectedInvoice, 'OVERDUE')">
+                  Mark Overdue
+                </button>
+              }
+            }
+
+            <button type="button" class="view-button" (click)="printInvoice()">
+              Print / PDF
+            </button>
+
+            <button type="button" class="cancel-button" (click)="closeInvoiceModal()">
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+</div>

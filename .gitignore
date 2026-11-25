@@ -1,0 +1,8 @@
+# Exclude phase reports and audit logs
+PHASE_*.md
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

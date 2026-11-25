@@ -1,0 +1,214 @@
+<div class="page">
+
+  <div class="page-header">
+
+    <div>
+      <h2>Materials</h2>
+      <p>Manage your raw material records</p>
+    </div>
+
+    @if (canManageMaterials) {
+      <button
+        class="primary-button"
+        (click)="openAddMaterialForm()">
+        + Add Material
+      </button>
+    }
+
+  </div>
+
+  @if (showForm) {
+
+    <div class="form-card">
+
+      <div class="form-header">
+
+        <div>
+          <h3>Add Material</h3>
+          <p>Enter the material details below</p>
+        </div>
+
+        <button
+          class="close-button"
+          (click)="closeAddMaterialForm()">
+          ×
+        </button>
+
+      </div>
+
+      <div class="form-grid">
+
+        <div class="form-group">
+          <label>Material Code</label>
+
+          <input
+            type="text"
+            [(ngModel)]="newMaterial.materialCode"
+            placeholder="e.g. MAT-004">
+        </div>
+
+        <div class="form-group">
+          <label>Material Name</label>
+
+          <input
+            type="text"
+            [(ngModel)]="newMaterial.materialName"
+            placeholder="Enter material name">
+        </div>
+
+        <div class="form-group">
+          <label>Unit</label>
+
+          <input
+            type="text"
+            [(ngModel)]="newMaterial.unit"
+            placeholder="e.g. KG, PCS, METER">
+        </div>
+
+        <div class="form-group">
+          <label>Reorder Level</label>
+
+          <input
+            type="number"
+            [(ngModel)]="newMaterial.reorderLevel"
+            placeholder="Enter reorder level">
+        </div>
+
+        <div class="form-group">
+          <label>Unit Cost</label>
+
+          <input
+            type="number"
+            [(ngModel)]="newMaterial.unitCost"
+            placeholder="Enter unit cost">
+        </div>
+
+      </div>
+
+      @if (errorMessage) {
+
+        <div class="form-error">
+          {{ errorMessage }}
+        </div>
+
+      }
+
+      <div class="form-actions">
+
+        <button
+          class="cancel-button"
+          (click)="closeAddMaterialForm()">
+          Cancel
+        </button>
+
+        <button
+          class="save-button"
+          (click)="saveMaterial()">
+          Save Material
+        </button>
+
+      </div>
+
+    </div>
+
+  }
+
+  @if (loading) {
+
+    <div class="message">
+      Loading materials...
+    </div>
+
+  }
+
+  @if (errorMessage && !showForm) {
+
+    <div class="error-message">
+      {{ errorMessage }}
+    </div>
+
+  }
+
+  @if (!loading && materials.length === 0) {
+
+    <div class="empty-state">
+      No materials found.
+    </div>
+
+  }
+
+  @if (materials.length > 0) {
+
+    <div class="table-card">
+
+      <table>
+
+        <thead>
+
+          <tr>
+            <th>ID</th>
+            <th>Material Code</th>
+            <th>Material Name</th>
+            <th>Unit</th>
+            <th>Reorder Level</th>
+            <th>Unit Cost</th>
+            <th>Action</th>
+          </tr>
+
+        </thead>
+
+        <tbody>
+
+          @for (material of materials; track material.materialId) {
+
+            <tr>
+
+              <td>
+                {{ material.materialId }}
+              </td>
+
+              <td>
+                <strong>{{ material.materialCode }}</strong>
+              </td>
+
+              <td>
+                {{ material.materialName }}
+              </td>
+
+              <td>
+                {{ material.unit }}
+              </td>
+
+              <td>
+                {{ material.reorderLevel }}
+              </td>
+
+              <td>
+                ₹{{ material.unitCost }}
+              </td>
+
+              <td>
+                @if (canManageMaterials) {
+                  <button
+                    class="delete-button"
+                    (click)="deleteMaterial(material.materialId)">
+                    Delete
+                  </button>
+                } @else {
+                  <span>Read-only</span>
+                }
+              </td>
+
+            </tr>
+
+          }
+
+        </tbody>
+
+      </table>
+
+    </div>
+
+  }
+
+</div>

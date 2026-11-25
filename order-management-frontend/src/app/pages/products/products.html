@@ -1,0 +1,350 @@
+<div class="page">
+
+  <div class="page-header">
+
+    <div>
+      <h2>Products</h2>
+      <p>Manage your product records</p>
+    </div>
+
+    @if (canManageProducts) {
+      <button
+        class="primary-button"
+        (click)="openAddProductForm()">
+        + Add Product
+      </button>
+    }
+
+  </div>
+
+  @if (showForm) {
+
+    <div class="form-card">
+
+      <div class="form-header">
+
+        <div>
+          <h3>Add Product</h3>
+          <p>Enter the product details below</p>
+        </div>
+
+        <button
+          class="close-button"
+          (click)="closeAddProductForm()">
+          ×
+        </button>
+
+      </div>
+
+      <div class="form-grid">
+
+        <div class="form-group">
+          <label>Product Code</label>
+
+          <input
+            type="text"
+            [(ngModel)]="newProduct.productCode"
+            placeholder="e.g. PROD-002">
+        </div>
+
+        <div class="form-group">
+          <label>Product Name</label>
+
+          <input
+            type="text"
+            [(ngModel)]="newProduct.productName"
+            placeholder="Enter product name">
+        </div>
+
+        <div class="form-group">
+          <label>Description</label>
+
+          <input
+            type="text"
+            [(ngModel)]="newProduct.description"
+            placeholder="Enter product description">
+        </div>
+
+        <div class="form-group">
+          <label>Unit Price</label>
+
+          <input
+            type="number"
+            [(ngModel)]="newProduct.unitPrice"
+            placeholder="Enter unit price">
+        </div>
+
+      </div>
+
+      @if (errorMessage) {
+
+        <div class="form-error">
+          {{ errorMessage }}
+        </div>
+
+      }
+
+      <div class="form-actions">
+
+        <button
+          class="cancel-button"
+          (click)="closeAddProductForm()">
+          Cancel
+        </button>
+
+        <button
+          class="save-button"
+          (click)="saveProduct()">
+          Save Product
+        </button>
+
+      </div>
+
+    </div>
+
+  }
+
+  @if (loading) {
+
+    <div class="message">
+      Loading products...
+    </div>
+
+  }
+
+  @if (errorMessage && !showForm) {
+
+    <div class="error-message">
+      {{ errorMessage }}
+    </div>
+
+  }
+
+  @if (!loading && products.length === 0) {
+
+    <div class="empty-state">
+      No products found.
+    </div>
+
+  }
+
+  @if (products.length > 0) {
+
+    <div class="table-card">
+
+      <table>
+
+        <thead>
+
+          <tr>
+            <th>ID</th>
+            <th>Product Code</th>
+            <th>Product Name</th>
+            <th>Description</th>
+            <th>Unit Price</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+
+        </thead>
+
+        <tbody>
+
+          @for (product of products; track product.productId) {
+
+            <tr>
+
+              <td>
+                {{ product.productId }}
+              </td>
+
+              <td>
+                <strong>{{ product.productCode }}</strong>
+              </td>
+
+              <td>
+                {{ product.productName }}
+              </td>
+
+              <td>
+                {{ product.description }}
+              </td>
+
+              <td>
+                ₹{{ product.unitPrice }}
+              </td>
+
+              <td>
+
+                @if (product.active) {
+
+                  <span class="status-active">
+                    Active
+                  </span>
+
+                } @else {
+
+                  <span class="status-inactive">
+                    Inactive
+                  </span>
+
+                }
+
+              </td>
+
+              <td>
+                <div class="action-buttons">
+                  <button
+                    type="button"
+                    class="bom-button"
+                    (click)="openBomModal(product)">
+                    {{ canManageProducts ? 'Manage BOM' : 'View BOM' }}
+                  </button>
+
+                  @if (canManageProducts) {
+                    <button
+                      class="delete-button"
+                      (click)="deleteProduct(product.productId)">
+                      Delete
+                    </button>
+                  }
+                </div>
+              </td>
+
+            </tr>
+
+          }
+
+        </tbody>
+
+      </table>
+
+    </div>
+
+  }
+
+  @if (selectedBomProduct) {
+    <div class="modal-backdrop" (click)="closeBomModal()">
+      <div class="modal-card" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <div>
+            <h3>Bill of Materials (BOM)</h3>
+            <p>
+              {{ selectedBomProduct.productCode }} — {{ selectedBomProduct.productName }}
+            </p>
+          </div>
+          <button type="button" class="close-button" (click)="closeBomModal()">×</button>
+        </div>
+
+        @if (bomSuccessMessage) {
+          <div class="bom-success">{{ bomSuccessMessage }}</div>
+        }
+
+        @if (bomErrorMessage) {
+          <div class="form-error">{{ bomErrorMessage }}</div>
+        }
+
+        @if (canManageProducts) {
+          <div class="bom-add-row">
+            <div class="form-group">
+              <label>Raw Material</label>
+              <select [(ngModel)]="newBomMaterialId">
+                <option [ngValue]="0">-- Select Material --</option>
+                @for (mat of availableMaterialsForBom; track mat.materialId) {
+                  <option [ngValue]="mat.materialId">
+                    {{ mat.materialCode }} - {{ mat.materialName }} ({{ mat.unit }})
+                  </option>
+                }
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Quantity Required / Unit</label>
+              <input
+                type="number"
+                min="0.01"
+                step="any"
+                [(ngModel)]="newBomQuantity" />
+            </div>
+
+            <button
+              type="button"
+              class="save-button"
+              [disabled]="bomSubmitting"
+              (click)="addBomMaterial()">
+              + Add Material
+            </button>
+          </div>
+        }
+
+        @if (bomLoading) {
+          <div class="message">Loading BOM mappings...</div>
+        } @else if (bomItems.length === 0) {
+          <div class="empty-state">
+            No raw materials mapped to this product yet.
+          </div>
+        } @else {
+          <div class="table-card">
+            <table>
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Material</th>
+                  <th>Unit</th>
+                  <th>Qty Required</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (item of bomItems; track item.productMaterialId) {
+                  <tr>
+                    <td><strong>{{ item.material.materialCode }}</strong></td>
+                    <td>{{ item.material.materialName }}</td>
+                    <td>{{ item.material.unit }}</td>
+                    <td>
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="any"
+                        class="bom-qty-input"
+                        [(ngModel)]="item.quantityRequired" />
+                    </td>
+                    <td>
+                      @if (canManageProducts) {
+                        <div class="action-buttons">
+                          <button
+                            type="button"
+                            class="bom-button"
+                            [disabled]="bomSubmitting"
+                            (click)="updateBomQuantity(item)">
+                            Update
+                          </button>
+                          <button
+                            type="button"
+                            class="delete-button"
+                            [disabled]="bomSubmitting"
+                            (click)="removeBomMaterial(item)">
+                            Remove
+                          </button>
+                        </div>
+                      } @else {
+                        <span>Read-only</span>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+
+        <div class="form-actions">
+          <button type="button" class="cancel-button" (click)="closeBomModal()">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+</div>

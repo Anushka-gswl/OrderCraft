@@ -1,0 +1,676 @@
+<div class="page">
+  <div class="page-header">
+    <div>
+      <h2>Customer Orders</h2>
+      <p>Create, review, and manage customer orders and line items</p>
+    </div>
+
+    @if (canManageOrders) {
+      <button
+        class="primary-button"
+        type="button"
+        (click)="openCreateOrderForm()">
+        + Create Order
+      </button>
+    }
+  </div>
+
+  <!-- Summary Strip -->
+  <div class="summary-grid">
+    <div class="summary-card">
+      <span>Total Orders</span>
+      <strong>{{ orders.length }}</strong>
+    </div>
+    <div class="summary-card">
+      <span>New Orders</span>
+      <strong>{{ newOrdersCount }}</strong>
+    </div>
+    <div class="summary-card">
+      <span>In Progress</span>
+      <strong>{{ inProgressOrdersCount }}</strong>
+    </div>
+    <div class="summary-card">
+      <span>Total Order Value</span>
+      <strong>₹{{ totalOrdersAmount | number: '1.2-2' }}</strong>
+    </div>
+  </div>
+
+  @if (successMessage) {
+    <div class="success-message">
+      <span>{{ successMessage }}</span>
+      <button
+        type="button"
+        class="dismiss-button"
+        (click)="successMessage = ''">
+        ×
+      </button>
+    </div>
+  }
+
+  @if (errorMessage && !showForm) {
+    <div class="error-message">
+      {{ errorMessage }}
+    </div>
+  }
+
+  <!-- Create / Edit Order Form -->
+  @if (showForm) {
+    <div class="form-card">
+      <div class="form-header">
+        <div>
+          <h3>
+            @if (editingOrderId !== undefined) {
+              Edit Customer Order
+            } @else {
+              Create Customer Order
+            }
+          </h3>
+          <p>
+            Select a customer and add one or more products. Final prices and totals are
+            verified by the server.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          class="close-button"
+          (click)="closeOrderForm()">
+          ×
+        </button>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="customerSelect">Customer *</label>
+          <select
+            id="customerSelect"
+            [(ngModel)]="orderForm.customerId">
+            <option [ngValue]="0">-- Select Customer --</option>
+            @for (customer of customers; track customer.customerId) {
+              <option [ngValue]="customer.customerId">
+                {{ customer.customerName }} ({{ customer.email }})
+              </option>
+            }
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="orderNumberInput">Order Number (Optional)</label>
+          <input
+            id="orderNumberInput"
+            type="text"
+            [(ngModel)]="orderForm.orderNumber"
+            placeholder="Leave blank to auto-generate (e.g. ORD-...)" />
+        </div>
+      </div>
+
+      <!-- Line Items Section -->
+      <div class="items-section">
+        <div class="items-header">
+          <div>
+            <h4>Order Line Items</h4>
+            <small>Prices are automatically loaded from the product catalog</small>
+          </div>
+          <button
+            type="button"
+            class="secondary-button"
+            (click)="addItemRow()">
+            + Add Product
+          </button>
+        </div>
+
+        <div class="items-table-wrapper">
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th>Product *</th>
+                <th>Unit Price</th>
+                <th>Quantity *</th>
+                <th>Subtotal</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of orderForm.items; track $index) {
+                <tr>
+                  <td>
+                    <select
+                      [(ngModel)]="row.productId"
+                      (ngModelChange)="onProductChange(row)">
+                      <option [ngValue]="0">-- Select Product --</option>
+                      @for (product of getSelectableProducts(row); track product.productId) {
+                        <option [ngValue]="product.productId">
+                          {{ product.productCode }} - {{ product.productName }} (₹{{
+                            product.unitPrice | number: '1.2-2'
+                          }})@if (isInactiveProduct(product)) { (Inactive)}
+                        </option>
+                      }
+                    </select>
+                  </td>
+                  <td class="numeric-cell">
+                    ₹{{ row.unitPrice | number: '1.2-2' }}
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      [(ngModel)]="row.quantity"
+                      (ngModelChange)="onQuantityChange(row)"
+                      class="qty-input" />
+                  </td>
+                  <td class="numeric-cell">
+                    <strong>₹{{ row.subtotal | number: '1.2-2' }}</strong>
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      class="delete-button"
+                      [disabled]="orderForm.items.length <= 1"
+                      (click)="removeItemRow($index)">
+                      Remove
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div class="order-total-bar">
+          <span>Estimated Total Amount</span>
+          <strong>₹{{ estimatedFormTotal | number: '1.2-2' }}</strong>
+        </div>
+      </div>
+
+      @if (formErrorMessage) {
+        <div class="form-error">
+          {{ formErrorMessage }}
+        </div>
+      }
+
+      <div class="form-actions">
+        <button
+          type="button"
+          class="cancel-button"
+          [disabled]="submitting"
+          (click)="closeOrderForm()">
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          class="save-button"
+          [disabled]="submitting"
+          (click)="saveOrder()">
+          @if (submitting) {
+            Saving...
+          } @else if (editingOrderId !== undefined) {
+            Update Order
+          } @else {
+            Create Order
+          }
+        </button>
+      </div>
+    </div>
+  }
+
+  <!-- Search and Filter Controls -->
+  <div class="toolbar-card">
+    <div class="search-box">
+      <input
+        type="text"
+        [(ngModel)]="searchTerm"
+        placeholder="Search by order number, customer name, or email..." />
+    </div>
+
+    <div class="filter-box">
+      <label for="statusFilterSelect">Status:</label>
+      <select
+        id="statusFilterSelect"
+        [(ngModel)]="statusFilter">
+        <option value="ALL">All Statuses</option>
+        <option value="NEW">NEW</option>
+        <option value="IN_PROGRESS">IN_PROGRESS</option>
+        <option value="COMPLETED">COMPLETED</option>
+        <option value="CANCELLED">CANCELLED</option>
+      </select>
+    </div>
+  </div>
+
+  @if (loading) {
+    <div class="message">
+      Loading customer orders...
+    </div>
+  }
+
+  @if (!loading && filteredOrders.length === 0) {
+    <div class="empty-state">
+      @if (orders.length === 0) {
+        No customer orders found. Click "+ Create Order" to place your first order.
+      } @else {
+        No orders match your current search or filter criteria.
+      }
+    </div>
+  }
+
+  @if (!loading && filteredOrders.length > 0) {
+    <div class="table-card">
+      <table>
+        <thead>
+          <tr>
+            <th>Order #</th>
+            <th>Customer</th>
+            <th>Order Date</th>
+            <th>Status</th>
+            <th>Total Amount</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          @for (order of filteredOrders; track order.orderId) {
+            <tr>
+              <td>
+                <strong>{{ order.orderNumber }}</strong>
+              </td>
+              <td>
+                <div>{{ order.customer?.customerName }}</div>
+                <small class="muted-text">{{ order.customer?.email }}</small>
+              </td>
+              <td>
+                {{ order.orderDate ? (order.orderDate | date: 'medium') : '—' }}
+              </td>
+              <td>
+                <span class="status-badge" [class]="getStatusClass(order.status)">
+                  {{ order.status }}
+                </span>
+              </td>
+              <td>
+                <strong>₹{{ order.totalAmount | number: '1.2-2' }}</strong>
+              </td>
+              <td>
+                <div class="action-buttons">
+                  <button
+                    type="button"
+                    class="view-button"
+                    (click)="viewOrderDetails(order)">
+                    View
+                  </button>
+
+                  <button
+                    type="button"
+                    class="workflow-button"
+                    (click)="openWorkflowModal(order)">
+                    Workflow
+                  </button>
+
+                  @if (canEdit(order)) {
+                    <button
+                      type="button"
+                      class="edit-button"
+                      (click)="openEditOrderForm(order)">
+                      Edit
+                    </button>
+                  }
+
+                  @if (canDelete(order)) {
+                    <button
+                      type="button"
+                      class="delete-button"
+                      (click)="deleteOrder(order)">
+                      Delete
+                    </button>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+
+  <!-- Order Details Modal -->
+  @if (detailsLoading) {
+    <div class="modal-backdrop">
+      <div class="modal-card">
+        <p class="message-inline">Loading order details...</p>
+      </div>
+    </div>
+  }
+
+  @if (selectedOrderDetails && !detailsLoading) {
+    <div class="modal-backdrop" (click)="closeOrderDetails()">
+      <div class="modal-card" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <div>
+            <h3>Order {{ selectedOrderDetails.orderNumber }}</h3>
+            <p>
+              Placed on
+              {{
+                selectedOrderDetails.orderDate
+                  ? (selectedOrderDetails.orderDate | date: 'medium')
+                  : '—'
+              }}
+            </p>
+          </div>
+
+          <div class="modal-header-right">
+            <span
+              class="status-badge"
+              [class]="getStatusClass(selectedOrderDetails.status)">
+              {{ selectedOrderDetails.status }}
+            </span>
+            <button
+              type="button"
+              class="close-button"
+              (click)="closeOrderDetails()">
+              ×
+            </button>
+          </div>
+        </div>
+
+        <div class="details-info-grid">
+          <div>
+            <span>Customer</span>
+            <strong>{{ selectedOrderDetails.customer?.customerName }}</strong>
+          </div>
+          <div>
+            <span>Email</span>
+            <strong>{{ selectedOrderDetails.customer?.email || '—' }}</strong>
+          </div>
+          <div>
+            <span>Phone</span>
+            <strong>{{ selectedOrderDetails.customer?.phone || '—' }}</strong>
+          </div>
+          <div>
+            <span>Address</span>
+            <strong>{{ selectedOrderDetails.customer?.address || '—' }}</strong>
+          </div>
+        </div>
+
+        <div class="modal-items">
+          <h4>Order Items ({{ selectedOrderDetails.items.length }})</h4>
+          <table>
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Product</th>
+                <th>Unit Price</th>
+                <th>Qty</th>
+                <th>Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of selectedOrderDetails.items; track item.orderItemId) {
+                <tr>
+                  <td><strong>{{ item.product?.productCode }}</strong></td>
+                  <td>{{ item.product?.productName }}</td>
+                  <td>₹{{ item.unitPrice | number: '1.2-2' }}</td>
+                  <td>{{ item.quantity }}</td>
+                  <td><strong>₹{{ item.subtotal | number: '1.2-2' }}</strong></td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="5" class="empty-cell">No items attached to this order.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div class="modal-footer">
+          <div class="modal-total">
+            <span>Total Amount:</span>
+            <strong>₹{{ selectedOrderDetails.totalAmount | number: '1.2-2' }}</strong>
+          </div>
+
+          <div class="modal-actions">
+            <button
+              type="button"
+              class="workflow-button"
+              (click)="openWorkflowModal(selectedOrderDetails)">
+              Open Workflow
+            </button>
+            @if (canEdit(selectedOrderDetails)) {
+              <button
+                type="button"
+                class="edit-button"
+                (click)="openEditOrderForm(selectedOrderDetails)">
+                Edit Order
+              </button>
+            }
+            <button
+              type="button"
+              class="cancel-button"
+              (click)="closeOrderDetails()">
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Order Processing Workflow Modal -->
+  @if (workflowLoading) {
+    <div class="modal-backdrop">
+      <div class="modal-card modal-wide">
+        <p class="message-inline">Analyzing material requirements and inventory...</p>
+      </div>
+    </div>
+  }
+
+  @if (workflowSummary && !workflowLoading) {
+    <div class="modal-backdrop" (click)="closeWorkflowModal()">
+      <div class="modal-card modal-wide" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <div>
+            <h3>Order Processing Workflow — {{ workflowSummary.orderNumber }}</h3>
+            <p>Track raw material availability, shortage procurement, and production status</p>
+          </div>
+          <div class="modal-header-right">
+            <span
+              class="status-badge"
+              [class]="getStatusClass(workflowSummary.status)">
+              {{ workflowSummary.status }}
+            </span>
+            <button
+              type="button"
+              class="close-button"
+              (click)="closeWorkflowModal()">
+              ×
+            </button>
+          </div>
+        </div>
+
+        <!-- Visual 5-Step Lifecycle Stepper -->
+        <div class="workflow-stepper">
+          <div class="step-item" [class]="'step-' + getWorkflowStepState(1)">
+            <span class="step-dot">1</span>
+            <small>Order Created</small>
+          </div>
+          <div class="step-item" [class]="'step-' + getWorkflowStepState(2)">
+            <span class="step-dot">2</span>
+            <small>Inventory Check</small>
+          </div>
+          <div class="step-item" [class]="'step-' + getWorkflowStepState(3)">
+            <span class="step-dot">3</span>
+            <small>Procurement (PO)</small>
+          </div>
+          <div class="step-item" [class]="'step-' + getWorkflowStepState(4)">
+            <span class="step-dot">4</span>
+            <small>In Processing</small>
+          </div>
+          <div class="step-item" [class]="'step-' + getWorkflowStepState(5)">
+            <span class="step-dot">5</span>
+            <small>Completed</small>
+          </div>
+        </div>
+
+        @if (workflowSuccessMessage) {
+          <div class="success-message">
+            <span>{{ workflowSuccessMessage }}</span>
+          </div>
+        }
+
+        @if (workflowErrorMessage) {
+          <div class="form-error">
+            {{ workflowErrorMessage }}
+          </div>
+        }
+
+        @if (workflowSummary.productsWithoutBom.length > 0) {
+          <div class="warning-banner">
+            <strong>Missing BOM Alert:</strong> No raw materials configured for:
+            {{ workflowSummary.productsWithoutBom.join(', ') }}. Configure BOM under Products.
+          </div>
+        }
+
+        <!-- Material Requirements & Inventory Table -->
+        <div class="modal-items">
+          <div class="section-row-header">
+            <h4>Material Requirements & Inventory Availability</h4>
+            <button
+              type="button"
+              class="secondary-button"
+              [disabled]="workflowActionLoading"
+              (click)="loadWorkflowSummary(workflowSummary.orderId)">
+              Recheck Inventory
+            </button>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Material</th>
+                <th>Required</th>
+                <th>Available</th>
+                <th>Shortage</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (req of workflowSummary.requirements; track req.materialId) {
+                <tr>
+                  <td><strong>{{ req.materialCode }}</strong></td>
+                  <td>{{ req.materialName }}</td>
+                  <td>{{ req.requiredQuantity }} {{ req.unit }}</td>
+                  <td>{{ req.availableQuantity }} {{ req.unit }}</td>
+                  <td>
+                    @if (req.shortageQuantity > 0) {
+                      <span class="shortage-text">{{ req.shortageQuantity }} {{ req.unit }}</span>
+                    } @else {
+                      <span>0 {{ req.unit }}</span>
+                    }
+                  </td>
+                  <td>
+                    <span
+                      class="status-badge"
+                      [class]="req.status === 'AVAILABLE' ? 'status-completed' : 'status-shortage'">
+                      {{ req.status }}
+                    </span>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="6" class="empty-cell">No material requirements computed for this order.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Linked Purchase Orders -->
+        @if (workflowSummary.linkedPurchaseOrders.length > 0) {
+          <div class="linked-pos-section">
+            <h4>Linked Purchase Orders ({{ workflowSummary.linkedPurchaseOrders.length }})</h4>
+            <div class="linked-po-list">
+              @for (po of workflowSummary.linkedPurchaseOrders; track po.purchaseOrderId) {
+                <div class="linked-po-pill">
+                  <strong>{{ po.poNumber }}</strong>
+                  <span>{{ po.supplierName }}</span>
+                  <span class="status-badge" [class]="po.status === 'RECEIVED' ? 'status-completed' : 'status-in-progress'">
+                    {{ po.status }}
+                  </span>
+                  <strong>₹{{ po.totalAmount | number: '1.2-2' }}</strong>
+                </div>
+              }
+            </div>
+          </div>
+        }
+
+        <div class="modal-footer">
+          <div class="workflow-actions-left">
+            @if (workflowSummary.canCancel && canManageOrders) {
+              <button
+                type="button"
+                class="delete-button"
+                [disabled]="workflowActionLoading"
+                (click)="cancelOrderFromWorkflow()">
+                Cancel Order
+              </button>
+            }
+          </div>
+
+          <div class="modal-actions">
+            @if (workflowSummary.canGeneratePurchaseOrder && canGeneratePo) {
+              <button
+                type="button"
+                class="secondary-button"
+                [disabled]="workflowActionLoading"
+                (click)="generateShortagePoFromWorkflow()">
+                Generate Shortage PO
+              </button>
+            }
+
+            @if (workflowSummary.canStartProcessing && canProcessOrders) {
+              <button
+                type="button"
+                class="save-button"
+                [disabled]="workflowActionLoading"
+                (click)="startProcessingFromWorkflow()">
+                Start Processing
+              </button>
+            }
+
+            @if (workflowSummary.canComplete && canProcessOrders) {
+              <button
+                type="button"
+                class="save-button"
+                [disabled]="workflowActionLoading"
+                (click)="completeOrderFromWorkflow()">
+                Complete Order
+              </button>
+            }
+
+            @if (workflowSummary.status === 'COMPLETED' && canManageOrders && !workflowInvoice) {
+              <button
+                type="button"
+                class="save-button"
+                [disabled]="workflowActionLoading"
+                (click)="generateInvoiceFromWorkflow()">
+                Generate Invoice
+              </button>
+            }
+
+            @if (workflowInvoice) {
+              <span class="status-badge status-completed">
+                Invoiced: {{ workflowInvoice.invoiceNumber }}
+              </span>
+            }
+
+            <button
+              type="button"
+              class="cancel-button"
+              (click)="closeWorkflowModal()">
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+</div>
